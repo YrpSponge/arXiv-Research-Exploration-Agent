@@ -1,6 +1,6 @@
 ---
 name: data_collector
-description: "抓取、收集和查找 arXiv 论文的核心能力。当用户请求搜索/抓取论文时（例如\"今天cs.CL分类里关于agent的文章\"、\"抓取XX方向的论文\"、\"查找论文\"、\"今日新论文\"），必须调用此 skill，禁止自行使用 WebSearch 或 WebFetch 代替。支持按分类(cs.CL/cs.LG等)和关键词筛选，构建 semantic similarity graph（替代 citation graph），deduplicate，pre-compute embeddings。"
+description: "Core capabilities for scraping, collecting, and retrieving arXiv papers. When a user requests to search or scrape papers (e.g., 'articles about agents in the cs.CL category today', 'scrape papers in the XX field', 'find papers', 'today's new papers'), this skill must be invoked. Using WebSearch or WebFetch as a substitute is strictly prohibited. It supports filtering by category (cs.CL/cs.LG, etc.) and keywords, building a semantic similarity graph (as a replacement for the citation graph), deduplication, and pre-computing embeddings"
 version: 1.0.0
 author: Han
 agent_created: true
@@ -246,16 +246,46 @@ the agent should read them **on demand** when it needs specific information:
 
 ---
 
-## Setup（首次使用，仅需一次）
+## Quick Start
 
 ```bash
-# 1. 安装依赖
-pip install arxiv tenacity pydantic sentence-transformers requests numpy
+# ── 依赖检查（首次使用必须执行）────────────────────────────────
+# 检查当前 Python 环境是否满足所有依赖
+python -c "
+import sys, subprocess
+pkgs = ['arxiv', 'tenacity', 'pydantic', 'sentence-transformers', 'numpy']
+missing = [p for p in pkgs if subprocess.run([sys.executable, '-c', f'import {p}'], capture_output=True).returncode != 0]
+if missing:
+    print(f'[依赖检查] 缺少以下包，请先安装：pip install {\" \".join(missing)}')
+    sys.exit(1)
+print('[依赖检查] 所有依赖已满足')
+"
+# ──────────────────────────────────────────────────────────────
 
-# 2. 设置共享数据目录（可选，不设则自动检测项目根下的 shared_data/）
-export WORKBUDDY_SHARED_DATA="/path/to/your/workspace/shared_data"
+# Run pipeline with config (can be called from any directory)
+python /path/to/skills/data_collector/scripts/pipeline.py \
+  --config /path/to/shared_data/config.json
 ```
 
-之后每次调用无需重复配置。
+**依赖说明：**
 
----
+| 包 | 用途 | 缺失后果 |
+|----|------|---------|
+| `arxiv` | arXiv API 抓取 | 无法运行 |
+| `tenacity` | API 重试（指数退避） | 遇到 503 时直接失败 |
+| `pydantic` | 输出 Schema 校验 | 跳过校验，直接写入 |
+| `sentence-transformers` | 论文向量编码（Embedding similarity graph 依赖） | Embedding 阶段跳过，paper_ranker 降级为纯 BM25 |
+| `numpy` | 向量存储和运算 | 无法写入 .npy 向量文件 |
+
+> ⚠️ **首次使用前必须检查依赖**。缺失任一包都可能引发 ImportError 或静默跳过关键阶段。如遇 Embedding 跳过，paper_ranker 的 interest_score 会降级为纯 BM25（仍可正常工作）。
+
+**Shared data output path — priority order:**
+
+| Priority | Source | Example |
+|----------|--------|---------|
+| 1 (highest) | `--shared-data` CLI arg | `--shared-data "C:/Users/31237/WorkBuddy/20260505170223/shared_data"` |
+| 2 | `WORKBUDDY_SHARED_DATA` env var | `export WORKBUDDY_SHARED_DATA="C:/Users/31237/WorkBuddy/20260505170223/shared_data"` |
+| 3 (fallback) | `~/.workbuddy/shared_data` | auto-created if neither above is set |
+
+> ⚠️ **Silent data loss warning**: Without either `--shared-data` or `WORKBUDDY_SHARED_DATA`,
+> output goes to `~/.workbuddy/shared_data/` — likely not your workspace. Always specify explicitly.
