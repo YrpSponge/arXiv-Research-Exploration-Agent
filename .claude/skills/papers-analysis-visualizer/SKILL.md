@@ -1,9 +1,8 @@
 ---
 name: papers-analysis-visualizer
-description: Build a research dashboard and visual analytics summary from structured paper data, focusing on paper recommendation, keyword network visualization and topic trend exploration.
+description: "A skill to build a research dashboard and organize structured paper data into notion database, focusing on paper recommendation, keyword network visualization and topic trend exploration."
 author: RuipengYu
 version: 1.0.0
-
 ---
 
 # Paper Analysis Visualizer
